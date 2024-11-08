@@ -13,7 +13,10 @@
 #include <unistd.h>
 #include <pwd.h>
 
-int keycodes[] = {1, 2, 4, 8, 16, 32, 64, 128, 129, 130, 132, 136, 144, 160, 192, 256, 257, 258, 260, 641, 642};
+// kd100:
+// int keycodes[] = {1, 2, 4, 8, 16, 32, 64, 128, 129, 130, 132, 136, 144, 160, 192, 256, 257, 258, 260, 641, 642};
+// k20:
+int keycodes[] = {142, 138, 143, 204, 140, 135, 133, 136, 150, 157, 134, 153, 1, 4, 2, 168, 145, 258, 260, 641, 642};
 char* file = "default.cfg";
 
 typedef struct event event;
@@ -34,7 +37,8 @@ void Handler(char*, int);
 char* Substring(char*, int, int);
 
 const int vid = 0x256c;
-const int pid = 0x006d;
+// const int pid = 0x006d; // KD100
+const int pid = 0x0069; // K20
 
 void GetDevice(int debug, int accept, int dry){
 	int err=0, wheelFunction=0, button=-1, totalButtons=0, wheelType=0, leftWheels=0, rightWheels=0, totalWheels=0;
@@ -301,7 +305,14 @@ void GetDevice(int debug, int accept, int dry){
 			while (err >=0){ // Listen for events
 				unsigned char data[40]; // Stores device input
 				int keycode = 0; // Keycode read from the device
-				err = libusb_interrupt_transfer(handle, 0x81, data, sizeof(data), NULL, 0); // Get data
+				err = libusb_interrupt_transfer(handle, 0x82, data, sizeof(data), NULL, 10); // Get key data with 10 ms timeout
+
+				if (err == LIBUSB_ERROR_TIMEOUT)
+					err = libusb_interrupt_transfer(handle, 0x83, data, sizeof(data), NULL, 10); // Get wheel data with 10ms timeout
+
+				if (err == LIBUSB_ERROR_TIMEOUT)
+					err = 0;
+
 
 				// Potential errors
 				if (err == LIBUSB_ERROR_TIMEOUT)
@@ -324,11 +335,11 @@ void GetDevice(int debug, int accept, int dry){
 				}
 
 				// Convert data to keycodes
-				if (data[4] != 0)
-					keycode = data[4];
-				else if (data[5] != 0)
-					keycode = data[5] + 128;
-				else if (data[6] != 0)
+				if (data[0] == 3 && data[1] != 0)
+					keycode = data[1];
+				else if (data[0] == 3 && data[2] != 0)
+					keycode = data[2] + 128;
+				else if (data[0] == 17 && data[6] != 0)
 					keycode = data[6] + 256;
 				if (data[1] == 241)
 					keycode+=512;
